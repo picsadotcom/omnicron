@@ -1,0 +1,40 @@
+{
+  "name": "Omnicron",
+  "version": "0.0.1",
+  "description": "A functional reactive library for building event-sourced backends.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ./index.js",
+    "test": "./node_modules/.bin/babel-tape-runner ./**/*.test.js | ./node_modules/.bin/faucet"
+  },
+  "author": "Rudolf Meijering <rudolf@picsa.com>",
+  "license": "LicenseRef-LICENSE",
+  "devDependencies": {
+    "babel-tape-runner": "^1.2.0",
+    "blue-tape": "^0.1.10",
+    "faucet": "0.0.1",
+    "sinon": "^1.17.1",
+    "source-map-support": "*"
+  },
+  "dependencies": {
+    "@reactivex/rxjs": "^5.0.0-alpha.14",
+    "aws-sdk": "^2.2.9",
+    "babel-preset-es2015-node": "^5.0.2",
+    "babel-register": "*",
+    "bluebird": "^2.10.0",
+    "debug": "^2.2.0",
+    "dynamo-streams": "^1.1.6",
+    "multiparty": "^4.1.2",
+    "ramda": "^0.18.0",
+    "request": "^2.65.0",
+    "stream-array": "^1.1.1",
+    "superagent": "^1.4.0",
+    "uuid": "^2.0.1",
+    "ws": "^0.8.1"
+  },
+  "babel": {
+    "presets": [
+      "es2015-node"
+    ]
+  }
+}
