@@ -1,6 +1,0 @@
-teresis:
-    image: tutum.co/skaapgif/teresis
-    mem_limit: 128mb
-    ports:
-    - 8080
-    restart: always

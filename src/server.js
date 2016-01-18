@@ -3,6 +3,7 @@ import Ws from 'ws';
 import Debug from 'debug';
 import uuid from 'uuid';
 import EventBus from './EventBus.js';
+import Promise from 'bluebird';
 
 const debug = Debug('omnicron:websocket');
 
@@ -113,7 +114,7 @@ const source = Observable.interval(1000).map(() => {
     ts: Date.now()
   }
 });
-source.subscribe(EventBus);
+//source.subscribe(EventBus);
 
 const Server = {
   port: 3001,
@@ -131,14 +132,23 @@ const Server = {
     Object.keys(aggregate.commandHandlers).forEach((cmdType) => {
       this.cmdRouter[cmdType] = this.cmdRouter[cmdType] || [];
       this.cmdRouter[cmdType].push(aggregate);
-    })
+    });
+    const replayCmd = '__replay';
+    this.cmdRouter[replayCmd] = this.cmdRouter[replayCmd] || [];
+    this.cmdRouter[replayCmd].push(aggregate);
   },
   route(cmd) {
     const aggregates = this.cmdRouter[cmd.type] || [];
     // TODO This is sync psuedo code, convert to real working code
-    let events = aggregates.map((a) => a.handle(cmd));
-    // Publish all events to the event bus
-    events.forEach(EventBus.next);
+    aggregates[0].handle(cmd).then((events) => {
+      // Publish all events to the event bus
+      events.forEach((e) => EventBus.next(e));
+    })
+    Promise.all(aggregates.map((a) => a.handle(cmd))).then((events) => {
+      console.log(events);
+      // Publish all events to the event bus
+      events.forEach((e) => EventBus.next(e));
+    });
   },
   listen() {
     // The Socket Server listens on the given port and emits each incoming connection
@@ -157,7 +167,7 @@ const Server = {
         console.log('got subscription to', stream.id);
         // Send all incoming commands to the router which routes these to
         // registered aggregates
-        stream.subscribe((cmd) => this.route(cmd));
+        stream.subscribe((cmd) => {this.route(cmd)});
       })
     });
   }

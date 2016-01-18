@@ -1,1 +1,1 @@
-MIT / LGPL?
+MIT

@@ -6,7 +6,7 @@ var memJournal = require('./src/MemJournal');
 var Server = require('./src/server');
 
 module.exports = {
-  Agggregate: aggregate,
+  Aggregate: aggregate,
   DynamoJournal: dynamoJournal,
   MemJournal: memJournal,
   Journal: dynamoJournal,

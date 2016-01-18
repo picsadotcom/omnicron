@@ -65,6 +65,31 @@ export const EventProcessor = {
     }).asCallback(cb, {spread: true});
   },
 
+  _replay({stream, fromSeq = 0, journal} = {}, cb) {
+    let events = [];
+    return new Promise((resolve, reject) => {
+      debug('replay(%s, %d, %j)', stream, fromSeq);
+      let seq = null;
+      const eventStream = journal.find(stream, fromSeq);
+
+      // TODO: Would we ever have async eventHandlers?
+      eventStream.on('data', (event) => {
+        events.push(event);
+        seq = event.seq;
+      });
+
+      eventStream.on('end', () => {
+        debug('replay() returning events=%j, sequence=%d', events, seq);
+        resolve([events, seq]);
+      });
+
+      eventStream.on('error', (err) => {
+        debug('replay() returning error=%j, state=%j, seq=%d', error, state, seq);
+        reject([err, events, seq])
+      });
+    }).asCallback(cb, {spread: true});
+  },
+
   apply(state, event){
     debug('apply() calling %s event handler for event: %j', event.type, event)
     return this.eventHandlers && this.eventHandlers[event.type](state, event);
@@ -127,6 +152,22 @@ export const Aggregate = {
       journal: this.journal
     };
 
+    // The special internal command `__replay` returns all historic events
+    if (command.type === '__replay'){
+      console.log('replaying')
+      return this._replay(opts)
+      .then(([events, seq]) => {
+        console.log('replay returning', events)
+        return events;
+      });
+    }
+
+    /* All other commands cause the aggregate to:
+     * (1) replay historic events to restore state
+     * (2) execute the given command against the state
+     * (3) commit any events triggered by the command
+     * (4) return these same triggered events to the caller
+     */
     let state, expectedSeq, events = null; // Shared across the promise chain
 
     return this.replay(opts)
