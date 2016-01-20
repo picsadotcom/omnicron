@@ -12,7 +12,6 @@ const debug = Debug('omnicron:websocket');
 const socketObserver = (socket, serializer, filter = () => true) => {
   return {
     next(message){
-      console.log('message: ', message, 'filter', filter(message))
       if(socket.readyState === 1 && filter(message)){
         socket.send(serializer(message));
       }
@@ -57,7 +56,6 @@ const Client = (serializer, deserializer) => {
 
     // The client Observable produces a stream subject for each subscription
     let clientObservable = Observable.create((obs) => {
-      debug('creating new stream Observable')
       subs.subscribe((subCmd) => {
         debug(`Subscribing ${subCmd.meta.ip} to ${subCmd.stream}`);
 
@@ -120,35 +118,16 @@ const Server = {
   port: 3001,
   serializer: JSON.stringify,
   deserializer: JSON.parse,
-  cmdRouter: [],
-  register(aggregate) {
-    // TODO When we register an aggregate with the router we have all the information
-    // we need to map each command -> commandHandler directly. At the moment we
-    // still have the aggregate do the mapping again on the incoming message.
-    // Who's responsibility is it, the Aggregate or the Router?
+  router: [],
+  register(streamType, aggregate) {
     // TODO We should do some sanity checks here to make sure an aggregate and it's
     // command handlers are valid. We should probably also execute them in a try catch
     // to prevent exceptions from destroying the whole server process.
-    Object.keys(aggregate.commandHandlers).forEach((cmdType) => {
-      this.cmdRouter[cmdType] = this.cmdRouter[cmdType] || [];
-      this.cmdRouter[cmdType].push(aggregate);
-    });
-    const replayCmd = '__replay';
-    this.cmdRouter[replayCmd] = this.cmdRouter[replayCmd] || [];
-    this.cmdRouter[replayCmd].push(aggregate);
-  },
-  route(cmd) {
-    const aggregates = this.cmdRouter[cmd.type] || [];
-    // TODO This is sync psuedo code, convert to real working code
-    aggregates[0].handle(cmd).then((events) => {
-      // Publish all events to the event bus
-      events.forEach((e) => EventBus.next(e));
-    })
-    Promise.all(aggregates.map((a) => a.handle(cmd))).then((events) => {
-      console.log(events);
-      // Publish all events to the event bus
-      events.forEach((e) => EventBus.next(e));
-    });
+    //this.router[streamType] = this.router[streamType] || [];
+    //this.router[streamType].push(aggregate);
+    // TODO In the future we might want to register more than one aggregate
+    // per `streamType`
+    this.router[streamType] = aggregate;
   },
   listen() {
     // The Socket Server listens on the given port and emits each incoming connection
@@ -164,10 +143,22 @@ const Server = {
 
       // Once a client subscribes to a stream...
       client.subscribe((stream) => {
-        console.log('got subscription to', stream.id);
-        // Send all incoming commands to the router which routes these to
-        // registered aggregates
-        stream.subscribe((cmd) => {this.route(cmd)});
+        stream.subscribe((cmd) => {
+          // Handle incoming commands
+          const streamType = cmd.stream.split(':')[0];
+          const aggregate = this.router[streamType] || [];
+          aggregate && aggregate.handle && aggregate.handle(cmd).then(({events}) => {
+            // If the command was an non-mutating internal command, only send
+            // events to this stream. Otherwise we publish events to the EventBus
+            // so that all clients will get updated with the state changes.
+            if (cmd.type === '__replay' || cmd.type === '__getState'){
+              events.forEach((e) => stream.next(e));
+            }
+            else {
+              events.forEach((e) => EventBus.next(e));
+            }
+          });
+        });
       })
     });
   }

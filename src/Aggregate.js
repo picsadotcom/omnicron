@@ -65,6 +65,7 @@ export const EventProcessor = {
     }).asCallback(cb, {spread: true});
   },
 
+// TODO: fix code duplication between replay and _replay as it's 99% the same
   _replay({stream, fromSeq = 0, journal} = {}, cb) {
     let events = [];
     return new Promise((resolve, reject) => {
@@ -152,13 +153,24 @@ export const Aggregate = {
       journal: this.journal
     };
 
-    // The special internal command `__replay` returns all historic events
+    // TODO These internal protocol commands (__replay, __getState) belong to
+    // the protocol layer not the Aggregate, move logic out to server.js.
+    
+    // The special internal command `__replay` returns all past events
     if (command.type === '__replay'){
-      console.log('replaying')
       return this._replay(opts)
       .then(([events, seq]) => {
-        console.log('replay returning', events)
-        return events;
+        return {events};
+      });
+    }
+
+    // The special internal command `__getState` returns all computed state from
+    // all past events
+    if (command.type === '__getState'){
+      return this._replay(opts)
+      .then(([events, seq]) => {
+        let state = events.reduce(this.apply.bind(this), this.initialState);
+        return {events: [{type: '__state', state, stream: command.stream}]};
       });
     }
 
@@ -178,7 +190,8 @@ export const Aggregate = {
       events = Array.isArray(_events) ? _events : [_events];
       return this.journal.commit(command.stream, expectedSeq, events);
     }).then(() => {
-      return state = events.reduce(this.apply.bind(this), state);
+      state = events.reduce(this.apply.bind(this), state);
+      return {events, state};
     }).asCallback(cb);
   }
 };
