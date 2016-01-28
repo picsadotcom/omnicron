@@ -8,16 +8,18 @@ const debug = Debug('omnicron:aggregate');
 
 export const Event = function(options){
   const e = Object.assign({}, options);
-  e.uuid = options.uuid || uuid.v4();
-  e.ts = options.ts || Date.now();
+  if (!options.uuid) e.uuid = uuid.v4();
+  if (!options.ts) e.ts = Date.now();
+  if (!options.v) e.v = 1;
   Object.freeze(e);
   return e;
 }
 
 export const Command = function(options){
   const c = Object.assign({}, options);
-  c.uuid = options.uuid || uuid.v4();
-  c.ts = options.ts || Date.now();
+  if (!options.uuid) c.uuid = uuid.v4();
+  if (!options.ts) c.ts = Date.now();
+  if (!options.v) c.v = 1;
   Object.freeze(c);
   return c;
 }
@@ -155,7 +157,7 @@ export const Aggregate = {
 
     // TODO These internal protocol commands (__replay, __getState) belong to
     // the protocol layer not the Aggregate, move logic out to server.js.
-    
+
     // The special internal command `__replay` returns all past events
     if (command.type === '__replay'){
       return this._replay(opts)
