@@ -1,4 +1,4 @@
-import test from 'tape';
+import test from 'blue-tape';
 import Journal from './MemJournal';
 
 const event = {type: 'TestEvent'};

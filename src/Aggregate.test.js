@@ -3,7 +3,14 @@ import Promise from 'bluebird';
 import sinon from 'sinon';
 import {Event, Command, EventProcessor, CommandProcessor, Aggregate} from './Aggregate';
 import Journal from './DynamoJournal';
-let initDone = Journal.init();
+
+const awsConfig = {
+  region: "eu-west-1",
+  endpoint: "http://localhost:8000",
+  accessKeyId: 'akid',
+  secretAccessKey: 'secret'
+};
+let initDone = Journal.init({awsConfig});
 
 test("EventProcessor.apply() calls each event's handler", (t) => {
   const events = [Event({type: 'Pinged'}), Event({type: 'Ponged'})];
@@ -85,7 +92,7 @@ test('Aggregate.handle() takes commands and produces the correct state from the 
   const genCommand = () => Command({stream: 'ticker1', type: 'Tick'});
   return initDone.then(Journal.reset.bind(Journal))
   .then(() => { return sut.handle(genCommand())})
-  .then((state) => { return sut.handle(genCommand()) })
-  .then((state) => { return sut.handle(genCommand()) })
-  .then((state) => { t.deepEqual(state, {ticks: 3}) });
+  .then(({state}) => { return sut.handle(genCommand()) })
+  .then(({state}) => { return sut.handle(genCommand()) })
+  .then(({state}) => { t.deepEqual(state, {ticks: 3}) });
 })

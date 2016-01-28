@@ -64,22 +64,44 @@ const DynamoJournal = {
    * @returns stream, a node stream of all the events
    */
   find(stream, fromSeq = 1){
+    debug('find() %s from sequence %d', stream, fromSeq);
+
     if (typeof(stream) === 'undefined' || stream === null){
       return dynamoStreams.createScanStream((new AWS.DynamoDB), {TableName: this._table});
     }
 
-    debug('find() %s from sequence %d', stream, fromSeq);
-    const params = {
-      TableName: this._table,
-      ExpressionAttributeNames: {
-        "#stream": 'stream'
-      },
-      ExpressionAttributeValues: {
-        ":stream": {S: stream},
-        ":fromSeq": {N: fromSeq.toString()}
-      },
-      KeyConditionExpression: "#stream = :stream AND seq >= :fromSeq"
-    };
+    const [streamType, streamId] = stream.split(':');
+    let params;
+    console.log(streamType, streamId)
+
+    if (streamId === '*'){
+      params = {
+        TableName: this._table,
+        ExpressionAttributeNames: {
+          "#stream": 'stream'
+        },
+        ExpressionAttributeValues: {
+          ":streamType": {S: streamType + ':'},
+          ":fromSeq": {N: fromSeq.toString()}
+        },
+        FilterExpression: "begins_with ( #stream, :streamType ) AND seq >= :fromSeq"
+      };
+      return dynamoStreams.createScanStream((new AWS.DynamoDB), params);
+    }
+    else {
+      params = {
+        TableName: this._table,
+        ExpressionAttributeNames: {
+          "#stream": 'stream'
+        },
+        ExpressionAttributeValues: {
+          ":stream": {S: stream},
+          ":fromSeq": {N: fromSeq.toString()}
+        },
+        KeyConditionExpression: "#stream = :stream AND seq >= :fromSeq"
+      };
+    }
+
     return dynamoStreams.createQueryStream((new AWS.DynamoDB), params);
   },
 
