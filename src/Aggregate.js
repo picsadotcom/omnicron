@@ -94,8 +94,14 @@ export const EventProcessor = {
   },
 
   apply(state, event){
-    debug('apply() calling %s event handler for event: %j', event.type, event)
-    return this.eventHandlers && this.eventHandlers[event.type](state, event);
+    debug('apply() calling %s event handler for event: %j with state: %j', event.type, event, state)
+
+    if (typeof this.eventHandlers[event.type] !== 'function') {
+      console.warn('Undefined event handler for events of type ' + event);
+      return state;
+    }
+
+    return this.eventHandlers[event.type](state, event);
   }
 };
 
@@ -190,6 +196,7 @@ export const Aggregate = {
       return this.exec(state, command);
     }).then((_events) => {
       events = Array.isArray(_events) ? _events : [_events];
+
       return this.journal.commit(command.stream, expectedSeq, events);
     }).then(() => {
       state = events.reduce(this.apply.bind(this), state);

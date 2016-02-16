@@ -24,7 +24,6 @@ const socketObserver = (socket, serializer, filter = () => true) => {
 // The mapper takes an incoming `connection` and emits a corresponding `client`
 // subject representing the remote browser.
 const Client = (serializer, deserializer) => {
-  console.log('creating client', serializer.toString(), deserializer.toString())
   return (connection) => {
     connection.uuid = uuid.v4();
     debug(`Connection OPEN: ${connection.upgradeReq.headers.host} / ${connection.uuid}`);
@@ -132,7 +131,7 @@ const Server = {
   listen() {
     // The Socket Server listens on the given port and emits each incoming connection
     let connections = ServerObservable({port: this.port});
-    // We map incoming connections onto `Client` creating a Observable that emits clients
+    // We map incoming connections onto `Client` creating an Observable that emits clients
     let clients = connections.map(Client(this.serializer, this.deserializer));
 
     // For each new client...

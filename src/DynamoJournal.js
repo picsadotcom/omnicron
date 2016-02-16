@@ -72,7 +72,6 @@ const DynamoJournal = {
 
     const [streamType, streamId] = stream.split(':');
     let params;
-    console.log(streamType, streamId)
 
     if (streamId === '*'){
       params = {
@@ -129,7 +128,6 @@ const DynamoJournal = {
     const put = Promise.promisify(this._db.put.bind(this._db));
 
     return Promise.each(events, (e, i) => {
-      //TODO Perhaps the id should be contained in the event
       e = Object.assign({}, e, {stream, seq: expectedSeq + i});
       const params = {
         TableName: this._table,
@@ -142,8 +140,7 @@ const DynamoJournal = {
 
       debug('commit()', e);
 
-      return put(params)
-      .catch((err) => {
+      return put(params).catch((err) => {
         if (err.code === 'ConditionalCheckFailedException'){
           err = new Error(`Conflicting sequence number for ${e.type}: ${e.stream}, expected ` +
             `${e.seq}`);
