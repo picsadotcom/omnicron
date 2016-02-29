@@ -64,7 +64,7 @@ const Client = (serializer, deserializer) => {
           .takeUntil(unsubs.filter(({stream}) => stream === subCmd.stream));
 
         // Combine Observable (provider) and Observer (consumer) into a subject
-        let stream = Subject.create(streamObservable, socketObserver(connection, serializer));
+        let stream = Subject.create(socketObserver(connection, serializer), streamObservable);
         stream.id = subCmd.stream;
         obs.next(stream);
 
@@ -86,7 +86,7 @@ const Client = (serializer, deserializer) => {
     };
 
     const clientObserver = socketObserver(connection, serializer, filter);
-    let client = Subject.create(clientObservable, clientObserver);
+    let client = Subject.create(clientObserver, clientObservable);
     client.ip = meta.ip;
     return client;
   };
@@ -135,7 +135,6 @@ const Server = {
 
     // For each new client...
     clients.subscribe((client) => {
-
       // Broadcast all EventBus events to the client
       EventBus.subscribe(client);
 

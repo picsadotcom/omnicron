@@ -78,7 +78,7 @@ const StreamSubject = {
       complete: () => {}
     };
 
-    this._subscriptions[streamId] = Subject.create(observable, observer);
+    this._subscriptions[streamId] = Subject.create(observer, observable);
     return this._subscriptions[streamId];
   }
 };

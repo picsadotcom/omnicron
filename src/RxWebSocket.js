@@ -77,7 +77,7 @@ RxWebSocket.create = (url, WebSocketCtor = WebSocket) => {
     }
   };
 
-  rxSocket = Subject.create(observable, observer);
+  rxSocket = Subject.create(observer, observable);
   rxSocket.readyState = readyState;
   return rxSocket;
 };

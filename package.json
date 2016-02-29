@@ -13,7 +13,7 @@
     "prebuild": "npm run clean",
     "build": "mkdir build && babel --ignore *.test.js src -d build --source-maps true && npm run build:doc",
     "build:doc": "doctoc --github --title \"## Contents\" ./",
-    "start": "babel --watch --ignore *.test.js src -o build/index.js --source-maps",
+    "start": "npm run prebuild && babel --watch --ignore *.test.js src -d build --source-maps",
     "test": "babel-tape-runner ./src/*.test.js | faucet",
     "cov": "npm run cov:clean && npm run cov:generate",
     "cov:clean": "rimraf coverage",
