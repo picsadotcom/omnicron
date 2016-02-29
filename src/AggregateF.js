@@ -1,3 +1,7 @@
+/*
+
+Experiment...
+
 import * as R from 'ramda';
 import Debug from 'debug';
 import assert from 'assert';
@@ -66,7 +70,7 @@ const Aggregate = {
   }
 }
 
-/* ----------------------------------------------------------------------- */
+// -----------------------------------------------------------------------
 
 const LoanAggregate = {
   initialState: {},
@@ -117,3 +121,4 @@ loanCommandHandler(new IssueLoan('8807185049087', 1500, 20, 12), () => {
     });
   });
 });
+*/

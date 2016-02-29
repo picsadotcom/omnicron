@@ -1,3 +1,12 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+## Contents
+
+- [Setup and installation (testing)](#setup-and-installation-testing)
+- [Production](#production)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Setup and installation (testing)
 1. npm install
 2. Download and run dynamodb

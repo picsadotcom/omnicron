@@ -1,4 +1,4 @@
-export default function Journal () {
+export default function Journal() {
   return {
     /*
      * Find all events pertaining to the given aggregateId after `version`

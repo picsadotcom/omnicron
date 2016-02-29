@@ -1,40 +1,73 @@
 {
-  "name": "Omnicron",
+  "name": "omnicron",
   "version": "0.0.1",
   "description": "A functional reactive library for building event-sourced backends.",
-  "main": "index.js",
-  "scripts": {
-    "start": "node ./index.js",
-    "test": "./node_modules/.bin/babel-tape-runner ./**/*.test.js | ./node_modules/.bin/faucet"
-  },
   "author": "Rudolf Meijering <rudolf@picsa.com>",
   "license": "LicenseRef-LICENSE",
+  "main": "build/node.js",
+  "browser": "build/browser.js",
+  "scripts": {
+    "init": "rimraf .validate.json && rimraf .jshintrc",
+    "clean": "rimraf build",
+    "lint": "eslint src",
+    "prebuild": "npm run clean",
+    "build": "mkdir build && babel --ignore *.test.js src -d build --source-maps true && npm run build:doc",
+    "build:doc": "doctoc --github --title \"## Contents\" ./",
+    "start": "babel --watch --ignore *.test.js src -o build/index.js --source-maps",
+    "test": "babel-tape-runner ./src/*.test.js | faucet",
+    "cov": "npm run cov:clean && npm run cov:generate",
+    "cov:clean": "rimraf coverage",
+    "cov:generate": "babel-node node_modules/.bin/isparta cover --report text --report html test/index.js",
+    "prepublish": "npm run build",
+    "validate": "npm run lint && npm run build && npm test",
+    "validate-dev": "npm run lint && npm run build && npm test | faucet",
+    "audit": "nsp check",
+    "deps": "npm run deps:missing && npm run deps:extra",
+    "deps:missing": "dependency-check package.json",
+    "deps:extra": "dependency-check package.json --extra --no-dev --ignore",
+    "precheck": "npm run validate",
+    "check": "npm run audit && npm run deps && npm outdated --depth 0"
+  },
+  "pre-commit": [
+    "lint"
+  ],
   "devDependencies": {
-    "babel-tape-runner": "^1.2.0",
-    "blue-tape": "^0.1.10",
-    "faucet": "0.0.1",
-    "sinon": "^1.17.1",
-    "source-map-support": "*"
+    "babel-core": "^6.4.5",
+    "babel-eslint": "^5.0.0",
+    "babel-loader": "^6.2.4",
+    "babel-cli": "^6.4.5",
+    "babel-preset-es2015": "^6.3.13",
+    "babel-tape-runner": "^2.0.1",
+    "doctoc": "^1.0.0",
+    "dependency-check": "^2.5.1",
+    "eslint-loader": "^1.2.1",
+    "faucet": "^0.0.1",
+    "isparta": "^4.0.0",
+    "eslint": "^2.2.0",
+    "eslint-loader": "^1.0.0",
+    "blue-tape": "^0.2.0",
+    "precommit-hook": "^3.0.0",
+    "nsp": "^2.2.0",
+    "rimraf": "^2.5.1",
+    "webpack": "^1.12.13"
   },
   "dependencies": {
-    "@reactivex/rxjs": "^5.0.0-alpha.14",
-    "aws-sdk": "^2.2.9",
-    "babel-preset-es2015-node": "^5.0.2",
-    "babel-register": "*",
-    "bluebird": "^2.10.0",
+    "@reactivex/rxjs": "^5.0.0-beta.2",
+    "aws-sdk": "^2.2.39",
+    "bluebird": "^3.3.3",
     "debug": "^2.2.0",
     "dynamo-streams": "^1.1.6",
-    "multiparty": "^4.1.2",
-    "ramda": "^0.18.0",
-    "request": "^2.65.0",
     "stream-array": "^1.1.1",
-    "superagent": "^1.4.0",
     "uuid": "^2.0.1",
-    "ws": "^0.8.1"
+    "ws": "^1.0.1"
   },
   "babel": {
     "presets": [
-      "es2015-node"
+      "es2015"
     ]
+  },
+  "directories": {
+    "doc": "docs",
+    "lib": "src"
   }
 }

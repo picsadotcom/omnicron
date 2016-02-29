@@ -1,28 +1,26 @@
-import * as R from 'ramda';
 import Debug from 'debug';
-import assert from 'assert';
 import Promise from 'bluebird';
 import uuid from 'uuid';
 
 const debug = Debug('omnicron:aggregate');
 
-export const Event = function(options){
+export const Event = function(options) {
   const e = Object.assign({}, options);
   if (!options.uuid) e.uuid = uuid.v4();
   if (!options.ts) e.ts = Date.now();
   if (!options.v) e.v = 1;
   Object.freeze(e);
   return e;
-}
+};
 
-export const Command = function(options){
+export const Command = function(options) {
   const c = Object.assign({}, options);
   if (!options.uuid) c.uuid = uuid.v4();
   if (!options.ts) c.ts = Date.now();
   if (!options.v) c.v = 1;
   Object.freeze(c);
   return c;
-}
+};
 
 /*
  * An EventProcessor restores state from a stream and mutates state by applying
@@ -43,7 +41,8 @@ export const EventProcessor = {
    * and `seq` is the sequence number of the last event or `null` if no events
    * were found.
    */
-  replay({stream, fromSeq = 0, state, journal} = {}, cb) {
+  replay({stream, fromSeq = 0, initialState, journal} = {}, cb) {
+    let state = initialState;
     return new Promise((resolve, reject) => {
       debug('replay(%s, %d, %j)', stream, fromSeq, state);
       let seq = null;
@@ -61,8 +60,8 @@ export const EventProcessor = {
       });
 
       eventStream.on('error', (err) => {
-        debug('replay() returning error=%j, state=%j, seq=%d', error, state, seq);
-        reject([err, state, seq])
+        debug('replay() returning error=%j, state=%j, seq=%d', err, state, seq);
+        reject([err, state, seq]);
       });
     }).asCallback(cb, {spread: true});
   },
@@ -82,13 +81,13 @@ export const EventProcessor = {
       });
 
       eventStream.on('end', () => {
-        debug('replay() returning events=%j, sequence=%d', events, seq);
+        debug('_replay() returning events=%j, sequence=%d', events, seq);
         resolve([events, seq]);
       });
 
       eventStream.on('error', (err) => {
-        debug('replay() returning error=%j, state=%j, seq=%d', error, state, seq);
-        reject([err, events, seq])
+        debug('_replay() returning error=%j, seq=%d', err, seq);
+        reject([err, events, seq]);
       });
     }).asCallback(cb, {spread: true});
   },
@@ -98,8 +97,9 @@ export const EventProcessor = {
 
     if (typeof this.eventHandlers[event.type] !== 'function') {
       console.warn('Undefined event handler for events of type ' + event);
-      if (event.stack && event.message)
-        console.log(event.message, event.stack)
+      if (event.stack && event.message) {
+        console.log(event.message, event.stack);
+      }
       return state;
     }
 
@@ -118,15 +118,17 @@ export const CommandProcessor = {
   exec(state, command, cb){
     return new Promise((resolve, reject) => {
       // TODO use schema validation tool?
-      if (typeof(command.uuid) === 'undefined' || command.uuid === null)
+      if (typeof command.uuid === 'undefined' || command.uuid === null){
         reject(new Error('Commands must have an uuid: %j', command));
-      if (typeof(command.stream) === 'undefined' || command.stream === null)
+      }
+      if (typeof command.stream === 'undefined' || command.stream === null){
         reject(new Error('Commands must belong to a stream: %j', command));
+      }
 
-      debug('exec() calling %s command handler for command: %j', command.type, command)
+      debug('exec() calling %s command handler for command: %j', command.type, command);
       this.commandHandlers[command.type](state, command, (err, events) => {
-        if (err) return reject(err);
-        resolve(events);
+        if (err) reject(err);
+        else resolve(events);
       });
     }).asCallback(cb);
   }
@@ -158,7 +160,7 @@ export const Aggregate = {
 
     const opts = {
       stream: command.stream,
-      state: this.initialState,
+      initialState: this.initialState,
       apply: this.apply,
       journal: this.journal
     };
@@ -169,7 +171,7 @@ export const Aggregate = {
     // The special internal command `__replay` returns all past events
     if (command.type === '__replay'){
       return this._replay(opts)
-      .then(([events, seq]) => {
+      .then(([events]) => {
         return {events};
       });
     }
@@ -178,7 +180,7 @@ export const Aggregate = {
     // all past events
     if (command.type === '__getState'){
       return this._replay(opts)
-      .then(([events, seq]) => {
+      .then(([events]) => {
         let state = events.reduce(this.apply.bind(this), this.initialState);
         return {events: [{type: '__state', state, stream: command.stream}]};
       });

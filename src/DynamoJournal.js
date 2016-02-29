@@ -1,5 +1,5 @@
-import AWS from "aws-sdk";
-import dynamoStreams from "dynamo-streams";
+import AWS from 'aws-sdk';
+import dynamoStreams from 'dynamo-streams';
 import Debug from 'debug';
 import Promise from 'bluebird';
 
@@ -13,7 +13,7 @@ const DynamoJournal = {
     if (this.initDone.isPending()) {
       debug('Journal not initialised, waiting for init() to complete');
     }
-    return this.initDone.then(() => {return p});
+    return this.initDone.then(() => p);
   },
 
   init({table = 'events', awsConfigPath, awsConfig} = {}){
@@ -24,8 +24,7 @@ const DynamoJournal = {
     // Load configuration
     if (awsConfigPath) {
       AWS.config.loadFromPath(awsConfigPath);
-    }
-    else {
+    } else {
       AWS.config.update(awsConfig);
     }
 
@@ -41,14 +40,14 @@ const DynamoJournal = {
 
   _createTable(table){
     var params = {
-        TableName : table,
+        TableName: table,
         KeySchema: [
-            { AttributeName: "stream", KeyType: "HASH"},
-            { AttributeName: "seq", KeyType: "RANGE" }
+            { AttributeName: 'stream', KeyType: 'HASH'},
+            { AttributeName: 'seq', KeyType: 'RANGE' }
         ],
         AttributeDefinitions: [
-            { AttributeName: "stream", AttributeType: "S" },
-            { AttributeName: "seq", AttributeType: "N" }
+            { AttributeName: 'stream', AttributeType: 'S' },
+            { AttributeName: 'seq', AttributeType: 'N' }
         ],
         ProvisionedThroughput: {
             ReadCapacityUnits: 10,
@@ -64,10 +63,10 @@ const DynamoJournal = {
       db.describeTable({TableName: table}, () => {})
     })
     */
-    .then(() => {debug("_createTable() created new table '%s'", table)})
-    .catch((err, data) => {
-      if (err && err.code != 'ResourceInUseException') {
-        throw(err);
+    .then(() => debug("_createTable() created new table '%s'", table))
+    .catch((err) => {
+      if (err && err.code !== 'ResourceInUseException') {
+        throw err;
       } else {
         debug("_createTable() table '%s' already exists", table);
       }
@@ -83,8 +82,8 @@ const DynamoJournal = {
   find(stream, fromSeq = 1){
     debug('find() %s from sequence %d', stream, fromSeq);
 
-    if (typeof(stream) === 'undefined' || stream === null){
-      return dynamoStreams.createScanStream((new AWS.DynamoDB), {TableName: this._table});
+    if (typeof stream === 'undefined' || stream === null){
+      return dynamoStreams.createScanStream(new AWS.DynamoDB(), {TableName: this._table});
     }
 
     const [streamType, streamId] = stream.split(':');
@@ -94,45 +93,44 @@ const DynamoJournal = {
       params = {
         TableName: this._table,
         ExpressionAttributeNames: {
-          "#stream": 'stream'
+          '#stream': 'stream'
         },
         ExpressionAttributeValues: {
-          ":streamType": {S: streamType + ':'},
-          ":fromSeq": {N: fromSeq.toString()}
+          ':streamType': {S: streamType + ':'},
+          ':fromSeq': {N: fromSeq.toString()}
         },
-        FilterExpression: "begins_with ( #stream, :streamType ) AND seq >= :fromSeq"
+        FilterExpression: 'begins_with ( #stream, :streamType ) AND seq >= :fromSeq'
       };
 
-      return dynamoStreams.createScanStream((new AWS.DynamoDB), params);
-    }
-    else {
+      return dynamoStreams.createScanStream(new AWS.DynamoDB(), params);
+    } else {
       params = {
         TableName: this._table,
         ExpressionAttributeNames: {
-          "#stream": 'stream'
+          '#stream': 'stream'
         },
         ExpressionAttributeValues: {
-          ":stream": {S: stream},
-          ":fromSeq": {N: fromSeq.toString()}
+          ':stream': {S: stream},
+          ':fromSeq': {N: fromSeq.toString()}
         },
-        KeyConditionExpression: "#stream = :stream AND seq >= :fromSeq"
+        KeyConditionExpression: '#stream = :stream AND seq >= :fromSeq'
       };
     }
 
-    return dynamoStreams.createQueryStream((new AWS.DynamoDB), params);
+    return dynamoStreams.createQueryStream(new AWS.DynamoDB(), params);
   },
 
   pruneEmptyValues(obj){
-    if (Array.isArray(obj)){
-      return obj.map((v) => {return this.pruneEmptyValues(v)});
-    }
-    else if (isDate(obj)){
+    if (Array.isArray(obj)) {
+      return obj.map((v) => this.pruneEmptyValues(v));
+    } else if (isDate(obj)) {
       return obj.toISOString();
-    }
-    else if (isObject(obj)){
-      obj = Object.assign({}, obj);
-      Object.keys(obj).forEach((k) => {obj[k] = this.pruneEmptyValues(obj[k])})
-      return obj;
+    } else if (isObject(obj)) {
+      let prunedObj = {};
+      Object.keys(obj).forEach((k) => {
+        prunedObj[k] = this.pruneEmptyValues(obj[k]);
+      });
+      return prunedObj;
     }
 
     return obj === '' ? ' ' : obj;
@@ -145,42 +143,47 @@ const DynamoJournal = {
   commit(stream, expectedSeq, events, cb){
     let put = null;
 
-    return this.initThen(Promise.each(events, (e, i) => {
+    const mappedEvents = events.map((e, i) => {
+      return Object.assign({}, e, {stream, seq: expectedSeq + i});
+    });
+
+    return this.initThen(Promise.each(mappedEvents, (e) => {
       // We have to wait for this._db to be set, so we can only create the `put`
       // promise after initThen. We don't want to re-initialize put on each of the
       // events though
       put = put || Promise.promisify(this._db.put.bind(this._db));
 
-      e = Object.assign({}, e, {stream, seq: expectedSeq + i});
       const params = {
         TableName: this._table,
         Item: this.pruneEmptyValues(e),
         ExpressionAttributeNames: {
-          "#stream": 'stream' // Substitute reserved word `stream` with `#stream`
+          '#stream': 'stream' // Substitute reserved word `stream` with `#stream`
         },
-        ConditionExpression: "attribute_not_exists(#stream) AND attribute_not_exists(seq)",
+        ConditionExpression: 'attribute_not_exists(#stream) AND attribute_not_exists(seq)'
       };
 
       debug('commit()', e);
 
       return put(params).catch((err) => {
-        if (err.code === 'ConditionalCheckFailedException'){
-          err = new Error(`Conflicting sequence number for ${e.type}: ${e.stream}, expected ` +
-            `${e.seq}`);
-          err.event = e;
-          debug(err.message);
+        let error = null;
+        if (err.code === 'ConditionalCheckFailedException') {
+          error = new Error(
+            `Conflicting sequence number for ${e.type}: ${e.stream},` +
+            ` expected ${e.seq}`
+          );
+          error.event = e;
+          debug(error.message);
         }
-        throw err;
+        throw error || err;
       });
     }))
     .asCallback(cb);
   },
 
   reset(journal){
-    if(process.env.NODE_ENV === 'production') {
-      return debug("reset() is disabled in production");
+    if (process.env.NODE_ENV === 'production') {
+      return debug('reset() is disabled in production');
     }
-
 
     const db = new AWS.DynamoDB();
 
@@ -190,8 +193,7 @@ const DynamoJournal = {
     })
     .then(() => this._createTable(this._table));
 
-    if(journal == undefined)
-      return p;
+    if (journal === undefined) return p;
 
     let seq = 1;
     return p.then(() => {
@@ -201,8 +203,8 @@ const DynamoJournal = {
         return this.commit(k, currSeq, journal[k]);
       });
     });
-  },
-}
+  }
+};
 
 DynamoJournal.initDone = new Promise((resolve, reject) => {
   DynamoJournal._initDoneResolve = resolve;

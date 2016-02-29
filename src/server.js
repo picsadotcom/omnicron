@@ -3,7 +3,6 @@ import Ws from 'ws';
 import Debug from 'debug';
 import uuid from 'uuid';
 import EventBus from './EventBus.js';
-import Promise from 'bluebird';
 
 const debug = Debug('omnicron:websocket');
 
@@ -12,12 +11,12 @@ const debug = Debug('omnicron:websocket');
 const socketObserver = (socket, serializer, filter = () => true) => {
   return {
     next(message){
-      if(socket.readyState === 1 && filter(message)){
+      if (socket.readyState === 1 && filter(message)) {
         socket.send(serializer(message));
       }
     },
-    error(err){console.error(err)}
-  }
+    error(err){console.error(err);}
+  };
 };
 
 // Creates a Client mapper with the given `serializer`/`deserializer`.
@@ -34,7 +33,7 @@ const Client = (serializer, deserializer) => {
       Object.keys(streams).forEach(s => streams[s].unsubscribe());
       // One day in ES7 we can do:
       //Object.values(connection.streams || {}).forEach(s => s.unsubscribe());
-    })
+    });
 
     // Create an Observable of all of this connection's incoming messages, we make
     // sure we `share` this Observable so that we don't add a new `message`
@@ -50,8 +49,8 @@ const Client = (serializer, deserializer) => {
     messages = messages.map(cmd => Object.assign({}, cmd, {meta}));
 
     // Partition all messages into: subscriptions, unsubscriptions and commands
-    let [subs, rest] = messages.partition(({type}) => type === '__Subscribe')
-    let [unsubs, commands] = rest.partition(({type}) => type === '__Unsubscribe')
+    let [subs, rest] = messages.partition(({type}) => type === '__Subscribe');
+    let [unsubs, commands] = rest.partition(({type}) => type === '__Unsubscribe');
 
     // The client Observable produces a stream subject for each subscription
     let clientObservable = Observable.create((obs) => {
@@ -62,7 +61,7 @@ const Client = (serializer, deserializer) => {
         // until a `unsubscribe` command for this stream is received
         let streamObservable = commands
           .filter(({stream}) => stream === subCmd.stream)
-          .takeUntil(unsubs.filter(({stream}) => stream === subCmd.stream))
+          .takeUntil(unsubs.filter(({stream}) => stream === subCmd.stream));
 
         // Combine Observable (provider) and Observer (consumer) into a subject
         let stream = Subject.create(streamObservable, socketObserver(connection, serializer));
@@ -84,14 +83,14 @@ const Client = (serializer, deserializer) => {
       // to broadcast a received message without also sending it back to it's source.
       const fromUs = msg.meta && msg.meta.client === connection.uuid;
       return subscribed && !fromUs;
-    }
+    };
 
     const clientObserver = socketObserver(connection, serializer, filter);
     let client = Subject.create(clientObservable, clientObserver);
     client.ip = meta.ip;
     return client;
-  }
-}
+  };
+};
 
 // Creates a WebSocket server Observable which emits connections
 const ServerObservable = (options) => {
@@ -109,7 +108,7 @@ const source = Observable.interval(1000).map(() => {
     stream: 'client-profile:0',
     data: {price: Math.random() * 100},
     ts: Date.now()
-  }
+  };
 });
 //source.subscribe(EventBus);
 
@@ -146,22 +145,23 @@ const Server = {
           // Handle incoming commands
           const streamType = cmd.stream.split(':')[0];
           const aggregate = this.router[streamType] || [];
-          aggregate && aggregate.handle && aggregate.handle(cmd).then(({events}) => {
+
+          return aggregate && aggregate.handle && aggregate.handle(cmd)
+          .then(({events}) => {
             // If the command was an non-mutating internal command, only send
             // events to this stream. Otherwise we publish events to the EventBus
             // so that all clients will get updated with the state changes.
             if (cmd.type === '__replay' || cmd.type === '__getState'){
               events.forEach((e) => stream.next(e));
-            }
-            else {
+            } else {
               events.forEach((e) => EventBus.next(e));
             }
           });
         });
-      })
+      });
     });
   }
 };
 
-const createServer = (opts) => {return Object.assign({}, Server, opts)};
+const createServer = (opts) => Object.assign({}, Server, opts);
 export {createServer};
