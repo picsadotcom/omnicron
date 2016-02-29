@@ -9,9 +9,19 @@ const isDate = (value) => toString.call(value) === '[object Date]';
 const isObject = (value) => value !== null && typeof value === 'object';
 
 const DynamoJournal = {
+  initThen(p) {
+    if (this.initDone.isPending()) {
+      debug('Journal not initialised, waiting for init() to complete');
+    }
+    return this.initDone.then(() => {return p});
+  },
 
   init({table = 'events', awsConfigPath, awsConfig} = {}){
     debug('init() table: ', table);
+
+    if (!this.initDone.isPending()) return this.initDone;
+
+    // Load configuration
     if (awsConfigPath) {
       AWS.config.loadFromPath(awsConfigPath);
     }
@@ -19,9 +29,14 @@ const DynamoJournal = {
       AWS.config.update(awsConfig);
     }
 
+    // Create events table if it doesn't exist
     this._table = table;
     this._db = new AWS.DynamoDB.DocumentClient();
-    return this._createTable(table);
+
+    this._createTable(table)
+      .then(() => this._initDoneResolve())
+      .error((e) => this._initDoneReject(e));
+    return this.initDone;
   },
 
   _createTable(table){
@@ -62,6 +77,8 @@ const DynamoJournal = {
   /*
    * Find all events pertaining to the given aggregateId
    * @returns stream, a node stream of all the events
+   * TODO: change to rxjs subject and wait for initDone before trying to start
+   *    streaming
    */
   find(stream, fromSeq = 1){
     debug('find() %s from sequence %d', stream, fromSeq);
@@ -85,6 +102,7 @@ const DynamoJournal = {
         },
         FilterExpression: "begins_with ( #stream, :streamType ) AND seq >= :fromSeq"
       };
+
       return dynamoStreams.createScanStream((new AWS.DynamoDB), params);
     }
     else {
@@ -125,9 +143,14 @@ const DynamoJournal = {
    * either all events will be persisted or none
    */
   commit(stream, expectedSeq, events, cb){
-    const put = Promise.promisify(this._db.put.bind(this._db));
+    let put = null;
 
-    return Promise.each(events, (e, i) => {
+    return this.initThen(Promise.each(events, (e, i) => {
+      // We have to wait for this._db to be set, so we can only create the `put`
+      // promise after initThen. We don't want to re-initialize put on each of the
+      // events though
+      put = put || Promise.promisify(this._db.put.bind(this._db));
+
       e = Object.assign({}, e, {stream, seq: expectedSeq + i});
       const params = {
         TableName: this._table,
@@ -149,18 +172,23 @@ const DynamoJournal = {
         }
         throw err;
       });
-    })
+    }))
     .asCallback(cb);
   },
 
   reset(journal){
-    debug("reset() deleting table '%s'", this._table);
-    //TODO: disable on production
+    if(process.env.NODE_ENV === 'production') {
+      return debug("reset() is disabled in production");
+    }
+
+
     const db = new AWS.DynamoDB();
 
-    let p = null;
-    p = Promise.promisify(db.deleteTable.bind(db))({TableName: this._table});
-    p = p.then(() => {return this._createTable(this._table)});
+    let p = this.initDone.then(() => {
+      debug("reset() deleting table '%s'", this._table);
+      return Promise.promisify(db.deleteTable.bind(db))({TableName: this._table});
+    })
+    .then(() => this._createTable(this._table));
 
     if(journal == undefined)
       return p;
@@ -173,8 +201,12 @@ const DynamoJournal = {
         return this.commit(k, currSeq, journal[k]);
       });
     });
-    return p;
   },
 }
+
+DynamoJournal.initDone = new Promise((resolve, reject) => {
+  DynamoJournal._initDoneResolve = resolve;
+  DynamoJournal._initDoneReject = reject;
+});
 
 export default DynamoJournal;
