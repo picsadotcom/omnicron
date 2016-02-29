@@ -71,7 +71,7 @@ export const EventProcessor = {
   _replay({stream, fromSeq = 0, journal} = {}, cb) {
     let events = [];
     return new Promise((resolve, reject) => {
-      debug('replay(%s, %d, %j)', stream, fromSeq);
+      debug('replay(%s, %d)', stream, fromSeq);
       let seq = null;
       const eventStream = journal.find(stream, fromSeq);
 
@@ -94,10 +94,12 @@ export const EventProcessor = {
   },
 
   apply(state, event){
-    debug('apply() calling %s event handler for event: %j with state: %j', event.type, event, state)
+    debug('apply() calling %s event handler for event: %j', event.type, event);
 
     if (typeof this.eventHandlers[event.type] !== 'function') {
       console.warn('Undefined event handler for events of type ' + event);
+      if (event.stack && event.message)
+        console.log(event.message, event.stack)
       return state;
     }
 
