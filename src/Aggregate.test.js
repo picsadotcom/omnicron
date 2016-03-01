@@ -92,5 +92,8 @@ test('Aggregate.handle() takes commands and produces the correct state from the 
   .then(() => sut.handle(genCommand()))
   .then(() => sut.handle(genCommand()))
   .then(() => sut.handle(genCommand()))
-  .then(({state}) => t.deepEqual(state, {ticks: 3}));
+  .then(({events, state}) => {
+    t.equal(events[0].seq, 3, 'Aggregate.handle() increments the event sequence number');
+    t.deepEqual(state, {ticks: 3});
+  });
 });

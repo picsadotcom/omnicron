@@ -192,19 +192,18 @@ export const Aggregate = {
      * (3) commit any events triggered by the command
      * (4) return these same triggered events to the caller
      */
-    let state, expectedSeq, events = null; // Shared across the promise chain
+    let state, expectedSeq; // Shared across the promise chain
 
     return this.replay(opts)
     .then(([_state, seq]) => {
       state = _state; expectedSeq = seq + 1;
       return this.exec(state, command);
-    }).then((_events) => {
-      events = Array.isArray(_events) ? _events : [_events];
-
+    }).then((newEvents) => {
+      const events = Array.isArray(newEvents) ? newEvents : [newEvents];
       return this.journal.commit(command.stream, expectedSeq, events);
-    }).then(() => {
-      state = events.reduce(this.apply.bind(this), state);
-      return {events, state};
+    }).then((committedEvents) => {
+      state = committedEvents.reduce(this.apply.bind(this), state);
+      return {events: committedEvents, state};
     }).asCallback(cb);
   }
 };
