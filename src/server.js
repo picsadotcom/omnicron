@@ -73,10 +73,16 @@ const Client = (serializer, deserializer) => {
       });
     });
 
-    // Filter all messages sent to this client only passing through messages
+    // Filter all messages sent to this client, only passing through messages
     // for streams which it had subscribed to.
     const filter = function(msg) {
-      const subscribed = msg.stream && connection.streams && connection.streams[msg.stream];
+      // Clients can either subscribe directly or use a wildcard '*' subscription
+      const directSub = msg.stream && connection.streams && connection.streams[msg.stream]
+      const wildcardSub = Object.keys(connection.streams).find((s) => {
+          return s[s.length - 1] === '*' && s.split(':')[0] === msg.stream.split(':')[0];
+        });
+      const subscribed = directSub || wildcardSub;
+
       // Since the EventBus broadcasts all messages it receives, we need to filter
       // out messages that came from this client.
       // TODO: This logic probably belongs to the EventBus. It's his responsibility
