@@ -77,8 +77,8 @@ const Client = (serializer, deserializer) => {
     // for streams which it had subscribed to.
     const filter = function(msg) {
       // Clients can either subscribe directly or use a wildcard '*' subscription
-      const directSub = msg.stream && connection.streams && connection.streams[msg.stream]
-      const wildcardSub = Object.keys(connection.streams).find((s) => {
+      const directSub = msg.stream && connection.streams && connection.streams[msg.stream];
+      const wildcardSub = Object.keys(connection.streams || {}).find((s) => {
           return s[s.length - 1] === '*' && s.split(':')[0] === msg.stream.split(':')[0];
         });
       const subscribed = directSub || wildcardSub;

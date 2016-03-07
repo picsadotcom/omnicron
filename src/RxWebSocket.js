@@ -64,15 +64,16 @@ RxWebSocket.create = (url, WebSocketCtor = WebSocket) => {
   const observer = {
     next: (message) => {
       const data = typeof message === 'string' ? message : JSON.stringify(message);
-      //test? this.socket.readyState === WebSocket.OPEN
-      socket.send(data);
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(data);
+      }
     },
     error: (err) => {
-      socket.close(3000, err);
+      if (socket) socket.close(3000, err);
       socket = null;
     },
     complete: () => {
-      socket.close();
+      if (socket) socket.close();
       socket = null;
     }
   };
