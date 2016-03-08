@@ -1,11 +1,9 @@
 import { Subject, Observable} from '@reactivex/rxjs';
 import RxWebSocket from './RxWebSocket';
 
-let rxSocket = RxWebSocket.create('ws://localhost:8081');
-
 const StreamSubject = {
   _subscriptions: [],
-  create(streamId){
+  create(rxSocket, streamId){
     if (this._subscriptions[streamId]){
       return this._subscriptions[streamId];
     }
