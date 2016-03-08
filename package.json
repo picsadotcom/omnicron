@@ -48,8 +48,7 @@
     "blue-tape": "^0.2.0",
     "precommit-hook": "^3.0.0",
     "nsp": "^2.2.0",
-    "rimraf": "^2.5.1",
-    "webpack": "^1.12.13"
+    "rimraf": "^2.5.1"
   },
   "dependencies": {
     "@reactivex/rxjs": "^5.0.0-beta.2",

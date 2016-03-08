@@ -108,18 +108,8 @@ const ServerObservable = (options) => {
   }).share();
 };
 
-// Test source to send messages to all clients over the EventBus
-const source = Observable.interval(1000).map(() => {
-  return {
-    stream: 'client-profile:0',
-    data: {price: Math.random() * 100},
-    ts: Date.now()
-  };
-});
-//source.subscribe(EventBus);
-
 const Server = {
-  port: 3001,
+  options: {},
   serializer: JSON.stringify,
   deserializer: JSON.parse,
   router: [],
@@ -135,7 +125,7 @@ const Server = {
   },
   listen() {
     // The Socket Server listens on the given port and emits each incoming connection
-    let connections = ServerObservable({port: this.port});
+    let connections = ServerObservable(this.options);
     // We map incoming connections onto `Client` creating an Observable that emits clients
     let clients = connections.map(Client(this.serializer, this.deserializer));
 
