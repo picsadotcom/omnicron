@@ -3,24 +3,31 @@ import RxWebSocket from './RxWebSocket';
 
 const StreamSubject = {
   _subscriptions: [],
-  create(rxSocket, streamId){
+  create(rxSocket, streamId, token){
     if (this._subscriptions[streamId]){
       return this._subscriptions[streamId];
     }
 
     const queue = [];
 
-    let observable = Observable.create((subscriber) => {
+    let observable = Observable.create((obs) => {
       // When someone subscribes to this observable... subscribe to the socket,
       // passing through messages from the server which belong to this stream
-      rxSocket.filter((d) => {
+      rxSocket.filter((e) => {
           if (streamId[streamId.length - 1] === '*') {
-            return d.stream.split(':')[0] === streamId.split(':')[0];
+            return e.stream.split(':')[0] === streamId.split(':')[0];
           } else {
-            return d.stream === streamId;
+            return e.stream === streamId;
           }
       })
-      .subscribe(subscriber);
+      .filter((e) => {
+        if (e.type === '__UnauthorizedError') {
+          setTimeout(() => obs.error(e), 0);
+          return false;
+        }
+        return true;
+      })
+      .subscribe(obs);
 
       // Send a subscription message when the underlying socket opens (and if it
       // disconnects, each subsequent time it opens again).
@@ -28,7 +35,7 @@ const StreamSubject = {
       .subscribe(() => {
         // Now send a message over the socket to tell the server we want to
         // subscribe to a particular stream of data
-        rxSocket.next({stream: streamId, type: '__Subscribe' });
+        rxSocket.next({stream: streamId, token, type: '__Subscribe' });
         // Send all buffered messages
         while (queue.length > 0 && rxSocket.readyState.getValue() === RxWebSocket.OPEN) {
           rxSocket.next(queue.shift());
@@ -55,6 +62,10 @@ const StreamSubject = {
     // gives us a stream of errors that we can transform
     // into an observable that notifies when we should retry the source
     .retryWhen(errors => errors.switchMap(err => {
+      if (err.type === '__UnauthorizedError') {
+        throw err;
+      }
+
       if (navigator.onLine) {
         // if we have a network connection, try again in 3 seconds
         return Observable.timer(3000);

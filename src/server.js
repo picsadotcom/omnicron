@@ -1,6 +1,6 @@
 import {Observable, Subject} from '@reactivex/rxjs';
-import Ws from 'ws';
 import Debug from 'debug';
+import Ws from 'ws';
 import uuid from 'uuid';
 import EventBus from './EventBus.js';
 
@@ -22,7 +22,7 @@ const socketObserver = (socket, serializer, filter = () => true) => {
 // Creates a Client mapper with the given `serializer`/`deserializer`.
 // The mapper takes an incoming `connection` and emits a corresponding `client`
 // subject representing the remote browser.
-const Client = (serializer, deserializer) => {
+const Client = (serializer, deserializer, auth) => {
   return (connection) => {
     connection.uuid = uuid.v4();
     debug(`Connection OPEN: ${connection.upgradeReq.headers.host} / ${connection.uuid}`);
@@ -56,6 +56,12 @@ const Client = (serializer, deserializer) => {
     let clientObservable = Observable.create((obs) => {
       subs.subscribe((subCmd) => {
         debug(`Subscribing ${subCmd.meta.ip} to ${subCmd.stream}`);
+        const streamObserver = socketObserver(connection, serializer);
+
+        if (!auth(subCmd)) {
+          debug(`Error: Unauthorized subscription for ${subCmd.meta.ip} to ${subCmd.stream}`);
+          streamObserver.next({stream: subCmd.stream, type: '__UnauthorizedError', data: {code: 403, reason: 'Unauthorized'}});
+        }
 
         // Produces an Observable that forwards all commands to the stream Subject
         // until a `unsubscribe` command for this stream is received
@@ -64,7 +70,7 @@ const Client = (serializer, deserializer) => {
           .takeUntil(unsubs.filter(({stream}) => stream === subCmd.stream));
 
         // Combine Observable (provider) and Observer (consumer) into a subject
-        let stream = Subject.create(socketObserver(connection, serializer), streamObservable);
+        let stream = Subject.create(streamObserver, streamObservable);
         stream.id = subCmd.stream;
         obs.next(stream);
 
@@ -112,6 +118,10 @@ const Server = {
   options: {},
   serializer: JSON.stringify,
   deserializer: JSON.parse,
+  auth: () => {
+    console.warn("StreamSubject subscription authorization hasn't been enabled!");
+    return true;
+  },
   router: [],
   register(streamType, aggregate) {
     // TODO We should do some sanity checks here to make sure an aggregate and it's
@@ -127,7 +137,7 @@ const Server = {
     // The Socket Server listens on the given port and emits each incoming connection
     let connections = ServerObservable(this.options);
     // We map incoming connections onto `Client` creating an Observable that emits clients
-    let clients = connections.map(Client(this.serializer, this.deserializer));
+    let clients = connections.map(Client(this.serializer, this.deserializer, this.auth));
 
     // For each new client...
     clients.subscribe((client) => {

@@ -44,7 +44,6 @@
     "faucet": "^0.0.1",
     "isparta": "^4.0.0",
     "eslint": "^2.2.0",
-    "eslint-loader": "^1.0.0",
     "blue-tape": "^0.2.0",
     "precommit-hook": "^3.0.0",
     "nsp": "^2.2.0",
