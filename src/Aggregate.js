@@ -31,6 +31,7 @@ export const Command = function(options) {
  */
 export const EventProcessor = {
   eventHandlers: undefined,
+  eventsCache: {},
 
   /*
    * @param stream
@@ -43,36 +44,71 @@ export const EventProcessor = {
    */
   replay({stream, fromSeq = 0, initialState, journal} = {}, cb) {
     let state = initialState;
+    const events = this.eventsCache[stream] || [];
+    if (events.length > 0) {
+      state = events.reduce(this.apply.bind(this), initialState);
+    }
     return new Promise((resolve, reject) => {
       debug('replay(%s, %d, %j)', stream, fromSeq, state);
       let seq = null;
-      const eventStream = journal.find(stream, fromSeq);
+
+      let timestamp;
+      const streamId = stream.split(':')[1];
+      if (streamId === '*') {
+        debug('replay(%s) re-using %d cached events', stream, events.length);
+        if (events.length > 0) {
+          timestamp = events.sort((a, b) => {
+            return +(a.ts > b.ts) || +(a.ts === b.ts) - 1;
+          })[events.length - 1].ts;
+        }
+      }
+
+      let eventStream;
+      if (timestamp) eventStream = journal.find(stream, null, timestamp + 1);
+      else eventStream = journal.find(stream, fromSeq);
 
       // TODO: Would we ever have async eventHandlers?
       eventStream.on('data', (event) => {
         state = this.apply(state, event);
         seq = event.seq;
+        this.eventsCache[stream] = this.eventsCache[stream] || [];
+        this.eventsCache[stream].push(event);
       });
 
       eventStream.on('end', () => {
-        debug('replay() returning state=%j, sequence=%d', state, seq);
+        debug('replay(%s) cached %d events', stream, events.length);
+        debug('replay(%s) returning state=%j, sequence=%d', stream, state, seq);
         resolve([state, seq]);
       });
 
       eventStream.on('error', (err) => {
-        debug('replay() returning error=%j, state=%j, seq=%d', err, state, seq);
+        debug('replay(%s) returning error=%j, state=%j, seq=%d', stream, err, state, seq);
         reject([err, state, seq]);
       });
     }).asCallback(cb, {spread: true});
   },
 
 // TODO: fix code duplication between replay and _replay as it's 99% the same
-  _replay({stream, fromSeq = 0, journal} = {}, cb) {
-    let events = [];
+  _replay({stream, fromSeq = 1, journal} = {}, cb) {
+    let events = this.eventsCache[stream] || [];
     return new Promise((resolve, reject) => {
       debug('replay(%s, %d)', stream, fromSeq);
       let seq = null;
-      const eventStream = journal.find(stream, fromSeq);
+
+      let timestamp;
+      const streamId = stream.split(':')[1];
+      if (streamId === '*') {
+        debug('replay(%s) re-using %d cached events', stream, events.length);
+        if (events.length > 0) {
+          timestamp = events.sort((a, b) => {
+            return +(a.ts > b.ts) || +(a.ts === b.ts) - 1;
+          })[events.length - 1].ts;
+        }
+      }
+
+      let eventStream;
+      if (timestamp) eventStream = journal.find(stream, null, timestamp + 1);
+      else eventStream = journal.find(stream, fromSeq);
 
       // TODO: Would we ever have async eventHandlers?
       eventStream.on('data', (event) => {
@@ -81,7 +117,12 @@ export const EventProcessor = {
       });
 
       eventStream.on('end', () => {
-        debug('_replay() returning events=%j, sequence=%d', events, seq);
+        if (streamId === '*') {
+          debug('replay(%s) cached %d events', stream, events.length);
+          this.eventsCache[stream] = events;
+        }
+
+        debug('_replay() returning %d events, sequence=%d', events.length, seq);
         resolve([events, seq]);
       });
 
@@ -96,7 +137,7 @@ export const EventProcessor = {
     debug('apply() calling %s event handler for event: %j', event.type, event);
 
     if (typeof this.eventHandlers[event.type] !== 'function') {
-      console.warn('Undefined event handler for events of type ' + event);
+      console.warn('Undefined event handler for events of type ' + event.type);
       if (event.stack && event.message) {
         console.log(event.message, event.stack);
       }

@@ -2,6 +2,7 @@ import AWS from 'aws-sdk';
 import dynamoStreams from 'dynamo-streams';
 import Debug from 'debug';
 import Promise from 'bluebird';
+import assert from 'assert';
 
 const debug = Debug('omnicron:dynamojournal');
 
@@ -79,8 +80,8 @@ const DynamoJournal = {
    * TODO: change to rxjs subject and wait for initDone before trying to start
    *    streaming
    */
-  find(stream, fromSeq = 1){
-    debug('find() %s from sequence %d', stream, fromSeq);
+  find(stream, fromSeq = 1, fromTimestamp){
+    debug('find() %s from sequence %d, timestamp %d', stream, fromSeq, fromTimestamp);
 
     if (typeof stream === 'undefined' || stream === null){
       return dynamoStreams.createScanStream(new AWS.DynamoDB(), {TableName: this._table});
@@ -89,18 +90,28 @@ const DynamoJournal = {
     const [streamType, streamId] = stream.split(':');
     let params;
 
-    if (streamId === '*'){
+    assert(typeof fromTimestamp === 'undefined' || streamId === '*', 'Cannot use `fromTimestamp` with non-wildcard streams');
+
+    if (streamId === '*') {
       params = {
         TableName: this._table,
         ExpressionAttributeNames: {
           '#stream': 'stream'
         },
         ExpressionAttributeValues: {
-          ':streamType': {S: streamType + ':'},
-          ':fromSeq': {N: fromSeq.toString()}
-        },
-        FilterExpression: 'begins_with ( #stream, :streamType ) AND seq >= :fromSeq'
+          ':streamType': {S: streamType + ':'}
+        }
       };
+
+      if (typeof fromTimestamp !== 'undefined') {
+        params.ExpressionAttributeValues[':fromTimestamp'] = {N: fromTimestamp.toString()};
+        params.FilterExpression = 'begins_with ( #stream, :streamType ) AND ts >= :fromTimestamp';
+      } else if (fromSeq) {
+        params.ExpressionAttributeValues[':fromSeq'] = {N: fromSeq.toString()};
+        params.FilterExpression = 'begins_with ( #stream, :streamType ) AND seq >= :fromSeq';
+      } else {
+        params.FilterExpression = 'begins_with ( #stream, :streamType )';
+      }
 
       return dynamoStreams.createScanStream(new AWS.DynamoDB(), params);
     } else {
