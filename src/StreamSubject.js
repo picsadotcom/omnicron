@@ -10,6 +10,29 @@ const StreamSubject = {
 
     const queue = [];
 
+    const observer = {
+      next: (data) => {
+        if (rxSocket.readyState.getValue() === RxWebSocket.OPEN) {
+          rxSocket.next(data);
+        } else {
+          queue.push(data);
+        }
+      },
+      error: (e) => console.log('err!!', e),
+      complete: () => {}
+    };
+
+    let heartbeat;
+    rxSocket.readyState.filter(s => s === RxWebSocket.OPEN).subscribe(() => {
+      heartbeat = Observable.interval(50000).subscribe(() => {
+        observer.next({type: '__heartbeat', ts: Date.now()});
+      });
+    });
+
+    rxSocket.readyState.filter(s => s === RxWebSocket.CLOSED).subscribe(() => {
+      return heartbeat && heartbeat.unsubscribe();
+    });
+
     let observable = Observable.create((obs) => {
       // When someone subscribes to this observable... subscribe to the socket,
       // passing through messages from the server which belong to this stream
@@ -74,18 +97,6 @@ const StreamSubject = {
         return Observable.fromEvent(window, 'online').take(1);
       }
     }));
-
-    const observer = {
-      next: (data) => {
-        if (rxSocket.readyState.getValue() === RxWebSocket.OPEN) {
-          rxSocket.next(data);
-        } else {
-          queue.push(data);
-        }
-      },
-      error: (e) => console.log('err!!', e),
-      complete: () => {}
-    };
 
     this._subscriptions[streamId] = Subject.create(observer, observable);
     return this._subscriptions[streamId];
